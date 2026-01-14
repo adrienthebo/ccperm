@@ -2,8 +2,9 @@
 
 A TUI (Terminal User Interface) viewer and editor for [Claude Code](https://claude.ai/code) permission settings.
 
-![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)
-![License](https://img.shields.io/badge/license-MIT-blue)
+[![Crates.io](https://img.shields.io/crates/v/ccperm.svg)](https://crates.io/crates/ccperm)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## Overview
 
@@ -19,7 +20,7 @@ A TUI (Terminal User Interface) viewer and editor for [Claude Code](https://clau
 
 ## Installation
 
-### From crates.io (coming soon)
+### From crates.io
 
 ```bash
 cargo install ccperm
