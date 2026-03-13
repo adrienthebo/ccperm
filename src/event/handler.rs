@@ -1,4 +1,4 @@
-use crate::app::{App, AppMode, ConfirmAction, FlatItem};
+use crate::app::{App, AppMode, ConfirmAction, FlatItem, SettingsSource};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use std::time::Duration;
@@ -11,6 +11,7 @@ pub fn handle_event(app: &mut App) -> Result<()> {
                 AppMode::Adding { .. } => handle_input_mode(app, key),
                 AppMode::Editing { .. } => handle_input_mode(app, key),
                 AppMode::Confirm { .. } => handle_confirm_mode(app, key),
+                AppMode::Moving { .. } => handle_moving_mode(app, key),
                 AppMode::Help => handle_help_mode(app, key),
             }
         }
@@ -24,7 +25,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => {
-            if app.dirty {
+            if !app.dirty.is_empty() {
                 app.mode = AppMode::Confirm {
                     message: "You have unsaved changes. Quit anyway?".to_string(),
                     action: ConfirmAction::Quit,
@@ -48,7 +49,7 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Char('h') | KeyCode::Left => {
             collapse_current(app);
         }
-        KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
+        KeyCode::Right | KeyCode::Enter => {
             expand_or_select(app);
         }
         KeyCode::Char('a') => {
@@ -76,8 +77,19 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Char('s') => {
-            if let Err(e) = app.save() {
-                app.status_message = Some(format!("Error: {}", e));
+            if app.dirty.is_empty() {
+                app.status_message = Some("No unsaved changes".to_string());
+            } else {
+                let sources: Vec<&str> = [SettingsSource::User, SettingsSource::Project, SettingsSource::Local]
+                    .iter()
+                    .filter(|s| app.dirty.contains(s))
+                    .map(|s| s.label())
+                    .collect();
+                let message = format!("Save changes to {}?", sources.join(", "));
+                app.mode = AppMode::Confirm {
+                    message,
+                    action: ConfirmAction::Save,
+                };
             }
         }
         KeyCode::Char('r') => {
@@ -85,22 +97,43 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
                 app.status_message = Some(format!("Error: {}", e));
             }
         }
-        KeyCode::Char('g') => {
-            app.selected_source = crate::app::SettingsSource::Global;
-            app.tree_state = crate::app::TreeState::default();
-            app.status_message = Some("Global settings".to_string());
+        KeyCode::Char('u') => {
+            app.set_source(crate::app::SettingsSource::User);
+        }
+        KeyCode::Char('p') => {
+            app.set_source(crate::app::SettingsSource::Project);
+        }
+        KeyCode::Char('l') => {
+            app.set_source(crate::app::SettingsSource::Local);
+        }
+        KeyCode::Char('m') => {
+            if let Some(index) = get_selected_permission_index(app) {
+                let all_sources = [SettingsSource::User, SettingsSource::Project, SettingsSource::Local];
+                let destinations: Vec<SettingsSource> = all_sources
+                    .iter()
+                    .filter(|s| **s != app.selected_source)
+                    .filter(|s| **s == SettingsSource::User || app.project_root.is_some())
+                    .copied()
+                    .collect();
+
+                if destinations.is_empty() {
+                    app.status_message = Some("No other settings sources available".to_string());
+                } else {
+                    let perm = app.current_permissions()[index].clone();
+                    app.mode = AppMode::Moving {
+                        index,
+                        permission: perm,
+                        destinations,
+                        selected: 0,
+                    };
+                }
+            }
         }
         KeyCode::Char('G') => {
-            // Jump to bottom
             let items = app.build_flat_items();
             if !items.is_empty() {
                 app.tree_state.flat_index = items.len() - 1;
             }
-        }
-        KeyCode::Char('L') => {
-            app.selected_source = crate::app::SettingsSource::Local;
-            app.tree_state = crate::app::TreeState::default();
-            app.status_message = Some("Local settings".to_string());
         }
         _ => {}
     }
@@ -180,6 +213,36 @@ fn handle_confirm_mode(app: &mut App, key: KeyEvent) {
 
 fn handle_help_mode(app: &mut App, _key: KeyEvent) {
     app.mode = AppMode::Normal;
+}
+
+fn handle_moving_mode(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => {
+            if let AppMode::Moving { destinations, selected, .. } = &mut app.mode {
+                if *selected + 1 < destinations.len() {
+                    *selected += 1;
+                }
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if let AppMode::Moving { selected, .. } = &mut app.mode {
+                *selected = selected.saturating_sub(1);
+            }
+        }
+        KeyCode::Enter => {
+            if let AppMode::Moving { index, destinations, selected, .. } = &app.mode {
+                let index = *index;
+                let destination = destinations[*selected];
+                app.move_permission(index, destination);
+                app.status_message = Some(format!("Moved to {}", destination.label()));
+            }
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Esc => {
+            app.mode = AppMode::Normal;
+        }
+        _ => {}
+    }
 }
 
 fn move_selection(app: &mut App, delta: i32) {

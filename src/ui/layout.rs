@@ -10,6 +10,7 @@ use ratatui::{
 
 use super::editor::render_editor;
 use super::help::render_help;
+use super::picker::render_picker;
 use super::tree::render_tree;
 
 pub fn render(frame: &mut Frame, app: &App) {
@@ -39,17 +40,21 @@ pub fn render(frame: &mut Frame, app: &App) {
         AppMode::Confirm { message, .. } => {
             render_confirm(frame, message);
         }
+        AppMode::Moving { .. } => {
+            render_picker(frame, app);
+        }
         AppMode::Normal => {}
     }
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     let source_indicator = match app.selected_source {
-        SettingsSource::Global => "[G]lobal",
+        SettingsSource::User => "[U]ser",
+        SettingsSource::Project => "[P]roject",
         SettingsSource::Local => "[L]ocal",
     };
 
-    let dirty_indicator = if app.dirty { " *" } else { "" };
+    let dirty_indicator = if !app.dirty.is_empty() { " *" } else { "" };
 
     let title = format!(
         " ccperm - Claude Code Permission Manager{}  |  {}  |  [?] Help  [q] Quit ",
@@ -99,14 +104,18 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw("dit "),
         Span::styled("[d]", Style::default().fg(Color::Yellow)),
         Span::raw("elete "),
+        Span::styled("[m]", Style::default().fg(Color::Yellow)),
+        Span::raw("ove "),
         Span::styled("[s]", Style::default().fg(Color::Yellow)),
         Span::raw("ave "),
         Span::styled("[r]", Style::default().fg(Color::Yellow)),
         Span::raw("eload "),
-        Span::styled("[g]", Style::default().fg(Color::Yellow)),
-        Span::raw("/"),
+        Span::styled("[u]", Style::default().fg(Color::Yellow)),
+        Span::raw("ser "),
+        Span::styled("[p]", Style::default().fg(Color::Yellow)),
+        Span::raw("roject "),
         Span::styled("[l]", Style::default().fg(Color::Yellow)),
-        Span::raw(" toggle source  "),
+        Span::raw("ocal  "),
         Span::styled(status, Style::default().fg(Color::Green)),
     ]);
 

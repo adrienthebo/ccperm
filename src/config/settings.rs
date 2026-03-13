@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Permissions {
@@ -45,35 +46,32 @@ impl Settings {
         Ok(())
     }
 
-    pub fn merge_local(&mut self, local: &Settings) {
-        // Local settings override global settings
-        for rule in &local.permissions.allow {
-            if !self.permissions.allow.contains(rule) {
-                self.permissions.allow.push(rule.clone());
-            }
-        }
-        for rule in &local.permissions.deny {
-            if !self.permissions.deny.contains(rule) {
-                self.permissions.deny.push(rule.clone());
-            }
-        }
-        for rule in &local.permissions.ask {
-            if !self.permissions.ask.contains(rule) {
-                self.permissions.ask.push(rule.clone());
-            }
-        }
-        if local.permissions.default_mode.is_some() {
-            self.permissions.default_mode = local.permissions.default_mode.clone();
-        }
-    }
 }
 
-pub fn get_global_settings_path() -> Option<PathBuf> {
+pub fn get_user_settings_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".claude").join("settings.json"))
 }
 
-pub fn get_local_settings_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".claude").join("settings.local.json"))
+pub fn get_project_settings_path(root: &Path) -> PathBuf {
+    root.join(".claude").join("settings.json")
+}
+
+pub fn get_local_settings_path(root: &Path) -> PathBuf {
+    root.join(".claude").join("settings.local.json")
+}
+
+pub fn find_project_root() -> Option<PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let path = String::from_utf8(output.stdout).ok()?;
+    Some(PathBuf::from(path.trim()))
 }
 
 #[cfg(test)]
@@ -88,15 +86,4 @@ mod tests {
         assert!(settings.permissions.ask.is_empty());
     }
 
-    #[test]
-    fn test_merge_local() {
-        let mut global = Settings::default();
-        global.permissions.allow.push("Bash(npm install)".to_string());
-
-        let mut local = Settings::default();
-        local.permissions.allow.push("Bash(cargo build)".to_string());
-
-        global.merge_local(&local);
-        assert_eq!(global.permissions.allow.len(), 2);
-    }
 }

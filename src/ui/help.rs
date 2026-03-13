@@ -30,6 +30,7 @@ pub fn render_help(frame: &mut Frame) {
         help_line("a", "Add new permission"),
         help_line("e", "Edit selected permission"),
         help_line("d", "Delete selected permission"),
+        help_line("m", "Move permission to another source"),
         help_line("s", "Save changes"),
         help_line("r", "Reload from file"),
         Line::from(""),
@@ -38,7 +39,8 @@ pub fn render_help(frame: &mut Frame) {
             Style::default().add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        help_line("g", "Switch to Global settings"),
+        help_line("u", "Switch to User settings"),
+        help_line("p", "Switch to Project settings"),
         help_line("l", "Switch to Local settings"),
         Line::from(""),
         Line::from(Span::styled(
