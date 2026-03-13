@@ -7,7 +7,6 @@ const TOOL_STYLE: Style = Style::new().fg(Color::Green);
 const PAREN_STYLE: Style = Style::new().fg(Color::DarkGray);
 const WILDCARD_STYLE: Style = Style::new().fg(Color::Blue);
 const LEGACY_WILDCARD_STYLE: Style = Style::new().fg(Color::Cyan);
-const TRUNCATION_STYLE: Style = Style::new().fg(Color::DarkGray);
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -18,21 +17,14 @@ enum State {
 }
 
 pub fn highlight_permission(raw: &str) -> Vec<Span<'static>> {
-    highlight(raw, true)
+    highlight(raw)
 }
 
 pub fn highlight_input(input: &str) -> Vec<Span<'static>> {
-    highlight(input, false)
+    highlight(input)
 }
 
-fn highlight(s: &str, truncate: bool) -> Vec<Span<'static>> {
-    let (input, truncated) = if truncate && s.chars().count() > 50 {
-        let end = s.char_indices().nth(47).map(|(i, _)| i).unwrap_or(s.len());
-        (&s[..end], true)
-    } else {
-        (s, false)
-    };
-
+fn highlight(input: &str) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let mut state = State::Tool;
     let mut buf = String::new();
@@ -100,10 +92,6 @@ fn highlight(s: &str, truncate: bool) -> Vec<Span<'static>> {
             State::Done => Style::default(),
         };
         spans.push(Span::styled(buf, style));
-    }
-
-    if truncated {
-        spans.push(Span::styled("...", TRUNCATION_STYLE));
     }
 
     spans
@@ -202,15 +190,6 @@ mod tests {
                 None,                  // "npm "
             ]
         );
-    }
-
-    #[test]
-    fn truncation() {
-        let long = "Bash(this is a very long permission rule that exceeds fifty characters limit)";
-        let spans = highlight_permission(long);
-        let full = text(&spans);
-        assert!(full.ends_with("..."));
-        assert!(full.chars().count() == 50);
     }
 
     #[test]
