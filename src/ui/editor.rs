@@ -1,33 +1,54 @@
 use crate::app::{App, AppMode};
 use crate::ui::layout::centered_rect;
-use super::highlight::highlight_input;
 use ratatui::{
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
-pub fn render_editor(frame: &mut Frame, app: &App) {
-    let area = centered_rect(70, 30, frame.area());
+pub fn render_editor(frame: &mut Frame, app: &mut App) {
+    let area = centered_rect(70, 40, frame.area());
 
-    let (title, input) = match &app.mode {
-        AppMode::Adding { input } => ("Add Permission", input.as_str()),
-        AppMode::Editing { input, .. } => ("Edit Permission", input.as_str()),
+    let title = match &app.mode {
+        AppMode::Adding => " Add Permission ",
+        AppMode::Editing { .. } => " Edit Permission ",
         _ => return,
     };
 
-    let text = vec![
-        Line::from(""),
-        Line::from("Enter permission rule:"),
-        Line::from(""),
-        Line::from({
-            let mut spans = vec![Span::raw("> ")];
-            spans.extend(highlight_input(input));
-            spans.push(Span::styled("_", Style::default().fg(Color::Gray)));
-            spans
-        }),
-        Line::from(""),
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .style(Style::default().fg(Color::Cyan)),
+        area,
+    );
+
+    let inner = Block::default().borders(Borders::ALL).inner(area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // "Enter permission rule:" + blank
+            Constraint::Length(1), // TextArea
+            Constraint::Length(1), // blank
+            Constraint::Min(1),   // Examples
+            Constraint::Length(2), // blank + footer
+        ])
+        .split(inner);
+
+    let prompt = Paragraph::new("Enter permission rule:");
+    frame.render_widget(prompt, chunks[0]);
+
+    if let Some(ref mut textarea) = app.textarea {
+        textarea.set_cursor_line_style(Style::default());
+        textarea.set_cursor_style(Style::default().fg(Color::Gray).bg(Color::DarkGray));
+        frame.render_widget(&*textarea, chunks[1]);
+    }
+
+    let examples = vec![
         Line::from("Examples:"),
         Line::from(Span::styled(
             "  Bash(npm install:*)",
@@ -41,6 +62,10 @@ pub fn render_editor(frame: &mut Frame, app: &App) {
             "  WebFetch(domain:github.com)",
             Style::default().fg(Color::DarkGray),
         )),
+    ];
+    frame.render_widget(Paragraph::new(examples), chunks[3]);
+
+    let footer = vec![
         Line::from(""),
         Line::from(vec![
             Span::styled("[Enter]", Style::default().fg(Color::Green)),
@@ -49,14 +74,5 @@ pub fn render_editor(frame: &mut Frame, app: &App) {
             Span::raw(" Cancel"),
         ]),
     ];
-
-    let dialog = Paragraph::new(text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(format!(" {} ", title))
-            .style(Style::default().fg(Color::Cyan)),
-    );
-
-    frame.render_widget(Clear, area);
-    frame.render_widget(dialog, area);
+    frame.render_widget(Paragraph::new(footer), chunks[4]);
 }

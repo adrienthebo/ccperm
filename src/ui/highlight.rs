@@ -20,10 +20,6 @@ pub fn highlight_permission(raw: &str) -> Vec<Span<'static>> {
     highlight(raw)
 }
 
-pub fn highlight_input(input: &str) -> Vec<Span<'static>> {
-    highlight(input)
-}
-
 fn highlight(input: &str) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     let mut state = State::Tool;
@@ -180,7 +176,7 @@ mod tests {
 
     #[test]
     fn incomplete_input() {
-        let spans = highlight_input("Bash(npm ");
+        let spans = highlight_permission("Bash(npm ");
         assert_eq!(text(&spans), "Bash(npm ");
         assert_eq!(
             colors(&spans),
@@ -231,7 +227,7 @@ mod tests {
 
     #[test]
     fn colon_at_end_of_input() {
-        let spans = highlight_input("Bash(npm install:");
+        let spans = highlight_permission("Bash(npm install:");
         assert_eq!(text(&spans), "Bash(npm install:");
         assert_eq!(
             colors(&spans),

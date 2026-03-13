@@ -13,7 +13,7 @@ use super::help::render_help;
 use super::picker::render_picker;
 use super::tree::render_tree;
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -31,7 +31,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Render modal dialogs
     match &app.mode {
-        AppMode::Adding { .. } | AppMode::Editing { .. } => {
+        AppMode::Adding | AppMode::Editing { .. } => {
             render_editor(frame, app);
         }
         AppMode::Help => {

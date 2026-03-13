@@ -15,7 +15,7 @@ fn main() -> Result<()> {
 
     // Main loop
     while !app.should_quit {
-        terminal.draw(|frame| ui::render(frame, &app))?;
+        terminal.draw(|frame| ui::render(frame, &mut app))?;
         event::handle_event(&mut app)?;
     }
 

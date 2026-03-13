@@ -2,6 +2,7 @@ use crate::app::{App, AppMode, ConfirmAction, FlatItem, SettingsSource};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use std::time::Duration;
+use tui_textarea::TextArea;
 
 pub fn handle_event(app: &mut App) -> Result<()> {
     if event::poll(Duration::from_millis(100))? {
@@ -53,18 +54,17 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
             expand_or_select(app);
         }
         KeyCode::Char('a') => {
-            app.mode = AppMode::Adding {
-                input: String::new(),
-            };
+            app.textarea = Some(TextArea::default());
+            app.mode = AppMode::Adding;
         }
         KeyCode::Char('e') => {
             if let Some(index) = get_selected_permission_index(app) {
                 let perms = app.current_permissions();
                 if index < perms.len() {
-                    app.mode = AppMode::Editing {
-                        index,
-                        input: perms[index].clone(),
-                    };
+                    let mut textarea = TextArea::from([perms[index].as_str()]);
+                    textarea.move_cursor(tui_textarea::CursorMove::End);
+                    app.textarea = Some(textarea);
+                    app.mode = AppMode::Editing { index };
                 }
             }
         }
@@ -146,43 +146,34 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
 fn handle_input_mode(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Esc => {
+            app.textarea = None;
             app.mode = AppMode::Normal;
         }
         KeyCode::Enter => {
-            match &app.mode {
-                AppMode::Adding { input } => {
-                    if !input.trim().is_empty() {
-                        app.add_permission(input.trim().to_string());
-                        app.status_message = Some("Permission added".to_string());
+            if let Some(ref textarea) = app.textarea {
+                let input = textarea.lines()[0].trim().to_string();
+                if !input.is_empty() {
+                    match &app.mode {
+                        AppMode::Adding => {
+                            app.add_permission(input);
+                            app.status_message = Some("Permission added".to_string());
+                        }
+                        AppMode::Editing { index } => {
+                            app.edit_permission(*index, input);
+                            app.status_message = Some("Permission updated".to_string());
+                        }
+                        _ => {}
                     }
                 }
-                AppMode::Editing { index, input } => {
-                    if !input.trim().is_empty() {
-                        app.edit_permission(*index, input.trim().to_string());
-                        app.status_message = Some("Permission updated".to_string());
-                    }
-                }
-                _ => {}
             }
+            app.textarea = None;
             app.mode = AppMode::Normal;
         }
-        KeyCode::Char(c) => {
-            match &mut app.mode {
-                AppMode::Adding { input } | AppMode::Editing { input, .. } => {
-                    input.push(c);
-                }
-                _ => {}
+        _ => {
+            if let Some(ref mut textarea) = app.textarea {
+                textarea.input(key);
             }
         }
-        KeyCode::Backspace => {
-            match &mut app.mode {
-                AppMode::Adding { input } | AppMode::Editing { input, .. } => {
-                    input.pop();
-                }
-                _ => {}
-            }
-        }
-        _ => {}
     }
 }
 

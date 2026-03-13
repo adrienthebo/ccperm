@@ -5,12 +5,13 @@ use crate::config::{
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use tui_textarea::TextArea;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMode {
     Normal,
-    Editing { index: usize, input: String },
-    Adding { input: String },
+    Editing { index: usize },
+    Adding,
     Confirm { message: String, action: ConfirmAction },
     Moving {
         index: usize,
@@ -60,6 +61,7 @@ pub struct App {
     pub should_quit: bool,
     pub tree_state: TreeState,
     pub status_message: Option<String>,
+    pub textarea: Option<TextArea<'static>>,
 }
 
 pub struct TreeState {
@@ -128,6 +130,7 @@ impl App {
             should_quit: false,
             tree_state: TreeState::default(),
             status_message: None,
+            textarea: None,
         })
     }
 
