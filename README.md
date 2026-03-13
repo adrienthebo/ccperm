@@ -8,15 +8,15 @@ A TUI (Terminal User Interface) viewer and editor for [Claude Code](https://clau
 
 ## Overview
 
-`ccperm` provides an interactive terminal interface to view and manage Claude Code's permission settings stored in `~/.claude/settings.json`. It helps you understand which tools and commands are allowed, denied, or require confirmation.
+`ccperm` provides an interactive terminal interface to view and manage Claude Code's permission settings. It supports all three settings sources (User, Project, and Local) and helps you understand which tools and commands are allowed, denied, or require confirmation.
 
 ## Features
 
 - **Tree View**: Permissions are automatically categorized and displayed in a collapsible tree structure
-- **Categories**: Git, NPM, GCloud, GitHub, FileSystem, Web, Python, Cargo, Docker, and Other
-- **Edit Support**: Add, edit, and delete permission rules
-- **Dual Settings**: Switch between global (`settings.json`) and local (`settings.local.json`) settings
-- **Tab Navigation**: Easily switch between Allow, Deny, and Ask permission types
+- **Categories**: Git, NPM, GCloud, GitHub, FileSystem, Web, Python, Cargo, Docker, Go, MCP, and Other
+- **Edit Support**: Add, edit, delete, move, and sort permission rules
+- **Three Settings Sources**: User (`~/.claude/settings.json`), Project (`<git-root>/.claude/settings.json`), and Local (`<git-root>/.claude/settings.local.json`)
+- **Tab Navigation**: Switch between Allow, Deny, and Ask permission types
 
 ## Installation
 
@@ -44,20 +44,41 @@ ccperm
 
 ### Key Bindings
 
+#### Navigation
+
 | Key | Action |
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `h` / `←` | Collapse category |
-| `l` / `→` / `Enter` | Expand category |
+| `→` / `Enter` | Expand category |
+| `G` | Jump to end |
 | `Tab` | Switch tab (Allow/Deny/Ask) |
+
+#### Actions
+
+| Key | Action |
+|-----|--------|
 | `a` | Add new permission |
 | `e` | Edit selected permission |
 | `d` | Delete selected permission |
+| `m` | Move permission to another source |
+| `o` | Sort permissions |
 | `s` | Save changes |
 | `r` | Reload from file |
-| `g` | Switch to Global settings |
-| `L` | Switch to Local settings |
+
+#### Settings Sources
+
+| Key | Action |
+|-----|--------|
+| `u` | Switch to User settings |
+| `p` | Switch to Project settings |
+| `l` | Switch to Local settings |
+
+#### Other
+
+| Key | Action |
+|-----|--------|
 | `?` | Show help |
 | `q` / `Esc` | Quit |
 
@@ -67,19 +88,19 @@ ccperm
 ┌─────────────────────────────────────────────────────────────────┐
 │ ccperm - Claude Code Permission Manager           [?] Help [q] │
 ├─────────────────────────────────────────────────────────────────┤
-│ [Allow] [Deny] [Ask]                              Source: [G]   │
+│ [Allow] [Deny] [Ask]                     [U]ser [P]roj [L]ocal │
 ├─────────────────────────────────────────────────────────────────┤
 │ ▼ Git (5)                                                       │
-│   ├─ git commit:*                                               │
-│   ├─ git push                                                   │
-│   └─ git add:*                                                  │
+│   ├─ Bash(git commit:*)                                         │
+│   ├─ Bash(git push)                                             │
+│   └─ Bash(git add:*)                                            │
 │ ▼ NPM (4)                                                       │
-│   ├─ npm install:*                                              │
-│   └─ npm run build:*                                            │
+│   ├─ Bash(npm install:*)                                        │
+│   └─ Bash(npm run build:*)                                      │
 │ ▶ GCloud (12)                                                   │
 │ ▶ Web (2)                                                       │
 ├─────────────────────────────────────────────────────────────────┤
-│ [a]dd [e]dit [d]elete [s]ave [r]eload             Total: 36     │
+│ [a]dd [e]dit [d]elete [m]ove [s]ave [r]eload        Total: 36  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -87,8 +108,9 @@ ccperm
 
 ccperm reads and writes to the following files:
 
-- `~/.claude/settings.json` - Global Claude Code settings
-- `~/.claude/settings.local.json` - Local overrides
+- `~/.claude/settings.json` — User settings (always available)
+- `<git-root>/.claude/settings.json` — Project settings (in git repos)
+- `<git-root>/.claude/settings.local.json` — Local settings (in git repos)
 
 ### Permission Format
 
