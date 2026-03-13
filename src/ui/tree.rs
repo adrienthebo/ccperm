@@ -1,4 +1,5 @@
 use crate::app::{App, FlatItem};
+use super::highlight::highlight_permission;
 use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
@@ -23,9 +24,9 @@ pub fn render_tree(frame: &mut Frame, area: Rect, app: &App) {
                 ListItem::new(Line::from(vec![Span::raw(text)]))
             }
             FlatItem::Permission { permission, .. } => {
-                let display = permission.display_short();
-                let text = format!("  ├─ {}", display);
-                ListItem::new(Line::from(vec![Span::raw(text)]))
+                let mut spans = vec![Span::raw("  ├─ ")];
+                spans.extend(highlight_permission(&permission.raw));
+                ListItem::new(Line::from(spans))
             }
         })
         .collect();

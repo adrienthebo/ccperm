@@ -1,5 +1,6 @@
 use crate::app::{App, AppMode};
 use crate::ui::layout::centered_rect;
+use super::highlight::highlight_input;
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
@@ -20,11 +21,12 @@ pub fn render_editor(frame: &mut Frame, app: &App) {
         Line::from(""),
         Line::from("Enter permission rule:"),
         Line::from(""),
-        Line::from(vec![
-            Span::raw("> "),
-            Span::styled(input, Style::default().fg(Color::Yellow)),
-            Span::styled("_", Style::default().fg(Color::Gray)),
-        ]),
+        Line::from({
+            let mut spans = vec![Span::raw("> ")];
+            spans.extend(highlight_input(input));
+            spans.push(Span::styled("_", Style::default().fg(Color::Gray)));
+            spans
+        }),
         Line::from(""),
         Line::from("Examples:"),
         Line::from(Span::styled(
