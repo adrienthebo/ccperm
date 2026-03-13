@@ -102,7 +102,9 @@ impl Permission {
             "WebFetch" => PermissionCategory::Web,
             t if t.starts_with("mcp__") => PermissionCategory::Mcp,
             "Bash" | "" => {
-                if arg_lower.starts_with("git ") || arg_lower == "git" {
+                if arg_lower.starts_with("mcp__") {
+                    PermissionCategory::Mcp
+                } else if arg_lower.starts_with("git ") || arg_lower == "git" {
                     PermissionCategory::Git
                 } else if arg_lower.starts_with("npm ")
                     || arg_lower.starts_with("npx ")

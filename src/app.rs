@@ -342,6 +342,8 @@ impl App {
             PermissionCategory::Python,
             PermissionCategory::Cargo,
             PermissionCategory::Docker,
+            PermissionCategory::Go,
+            PermissionCategory::Mcp,
             PermissionCategory::Other,
         ];
 
