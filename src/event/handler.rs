@@ -1,5 +1,5 @@
 use crate::app::{App, AppMode, ConfirmAction, FlatItem, SettingsSource};
-use crate::config::Permission;
+use crate::config::{Permission, PermissionType};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use std::time::Duration;
@@ -14,6 +14,7 @@ pub fn handle_event(app: &mut App) -> Result<()> {
                 AppMode::Editing { .. } => handle_input_mode(app, key),
                 AppMode::Confirm { .. } => handle_confirm_mode(app, key),
                 AppMode::Moving { .. } => handle_moving_mode(app, key),
+                AppMode::Changing { .. } => handle_changing_mode(app, key),
                 AppMode::Help => handle_help_mode(app, key),
             }
         }
@@ -132,6 +133,24 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
                         selected: 0,
                     };
                 }
+            }
+        }
+        KeyCode::Char('c') => {
+            if let Some(index) = get_selected_permission_index(app) {
+                let all_types = [PermissionType::Allow, PermissionType::Deny, PermissionType::Ask];
+                let destinations: Vec<PermissionType> = all_types
+                    .iter()
+                    .filter(|t| **t != app.selected_tab)
+                    .cloned()
+                    .collect();
+
+                let perm = app.current_permissions()[index].clone();
+                app.mode = AppMode::Changing {
+                    index,
+                    permission: perm,
+                    destinations,
+                    selected: 0,
+                };
             }
         }
         KeyCode::Char('G') => {
@@ -255,6 +274,52 @@ fn handle_moving_mode(app: &mut App, key: KeyEvent) {
                 let destination = destinations[*selected];
                 app.move_permission(index, destination);
                 app.status_message = Some(format!("Moved to {}", destination.label()));
+            }
+            app.mode = AppMode::Normal;
+        }
+        KeyCode::Esc => {
+            app.mode = AppMode::Normal;
+        }
+        _ => {}
+    }
+}
+
+fn handle_changing_mode(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('j') | KeyCode::Down => {
+            if let AppMode::Changing { destinations, selected, .. } = &mut app.mode {
+                if *selected + 1 < destinations.len() {
+                    *selected += 1;
+                }
+            }
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            if let AppMode::Changing { selected, .. } = &mut app.mode {
+                *selected = selected.saturating_sub(1);
+            }
+        }
+        KeyCode::Char('a') | KeyCode::Char('d') | KeyCode::Char('K') => {
+            let target = match key.code {
+                KeyCode::Char('a') => PermissionType::Allow,
+                KeyCode::Char('d') => PermissionType::Deny,
+                KeyCode::Char('K') => PermissionType::Ask,
+                _ => unreachable!(),
+            };
+            if let AppMode::Changing { index, destinations, .. } = &app.mode {
+                if destinations.contains(&target) {
+                    let index = *index;
+                    app.change_permission_type(index, target.clone());
+                    app.status_message = Some(format!("Changed to {}", target));
+                    app.mode = AppMode::Normal;
+                }
+            }
+        }
+        KeyCode::Enter => {
+            if let AppMode::Changing { index, destinations, selected, .. } = &app.mode {
+                let index = *index;
+                let destination = destinations[*selected].clone();
+                app.change_permission_type(index, destination.clone());
+                app.status_message = Some(format!("Changed to {}", destination));
             }
             app.mode = AppMode::Normal;
         }

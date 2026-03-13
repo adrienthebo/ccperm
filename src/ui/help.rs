@@ -30,6 +30,7 @@ pub fn render_help(frame: &mut Frame) {
         help_line("a", "Add new permission"),
         help_line("e", "Edit selected permission"),
         help_line("d", "Delete selected permission"),
+        help_line("c", "Change permission type (allow/deny/ask)"),
         help_line("m", "Move permission to another source"),
         help_line("o", "Sort permissions"),
         help_line("s", "Save changes"),

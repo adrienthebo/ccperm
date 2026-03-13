@@ -19,6 +19,12 @@ pub enum AppMode {
         destinations: Vec<SettingsSource>,
         selected: usize,
     },
+    Changing {
+        index: usize,
+        permission: String,
+        destinations: Vec<PermissionType>,
+        selected: usize,
+    },
     Help,
 }
 
@@ -329,6 +335,23 @@ impl App {
         };
         self.dirty.insert(self.selected_source);
         self.dirty.insert(destination);
+    }
+
+    pub fn change_permission_type(&mut self, index: usize, destination: PermissionType) {
+        let perm = {
+            let perms = self.current_permissions_mut();
+            if index >= perms.len() {
+                return;
+            }
+            perms.remove(index)
+        };
+        let settings = self.current_settings_mut();
+        match destination {
+            PermissionType::Allow => settings.permissions.allow.push(perm),
+            PermissionType::Deny => settings.permissions.deny.push(perm),
+            PermissionType::Ask => settings.permissions.ask.push(perm),
+        };
+        self.dirty.insert(self.selected_source);
     }
 
     pub fn build_flat_items(&self) -> Vec<FlatItem> {

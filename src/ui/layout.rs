@@ -10,7 +10,7 @@ use ratatui::{
 
 use super::editor::render_editor;
 use super::help::render_help;
-use super::picker::render_picker;
+use super::picker::{render_picker, render_type_picker};
 use super::tree::render_tree;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -42,6 +42,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         }
         AppMode::Moving { .. } => {
             render_picker(frame, app);
+        }
+        AppMode::Changing { .. } => {
+            render_type_picker(frame, app);
         }
         AppMode::Normal => {}
     }
@@ -138,6 +141,8 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw("dit "),
         Span::styled("[d]", Style::default().fg(Color::Yellow)),
         Span::raw("elete "),
+        Span::styled("[c]", Style::default().fg(Color::Yellow)),
+        Span::raw("hange "),
         Span::styled("[m]", Style::default().fg(Color::Yellow)),
         Span::raw("ove s"),
         Span::styled("[o]", Style::default().fg(Color::Yellow)),
