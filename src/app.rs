@@ -266,6 +266,12 @@ impl App {
         }
     }
 
+    pub fn sort_permissions(&mut self) {
+        let perms = self.current_permissions_mut();
+        perms.sort();
+        self.dirty.insert(self.selected_source);
+    }
+
     pub fn move_permission(&mut self, index: usize, destination: SettingsSource) {
         let perm = {
             let perms = self.current_permissions_mut();

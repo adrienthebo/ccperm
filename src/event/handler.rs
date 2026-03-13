@@ -106,6 +106,10 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Char('l') => {
             app.set_source(crate::app::SettingsSource::Local);
         }
+        KeyCode::Char('o') => {
+            app.sort_permissions();
+            app.status_message = Some("Permissions sorted".to_string());
+        }
         KeyCode::Char('m') => {
             if let Some(index) = get_selected_permission_index(app) {
                 let all_sources = [SettingsSource::User, SettingsSource::Project, SettingsSource::Local];
