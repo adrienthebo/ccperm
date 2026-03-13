@@ -1,4 +1,5 @@
 use crate::app::{App, AppMode, ConfirmAction, FlatItem, SettingsSource};
+use crate::config::Permission;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use std::time::Duration;
@@ -152,18 +153,25 @@ fn handle_input_mode(app: &mut App, key: KeyEvent) {
         KeyCode::Enter => {
             if let Some(ref textarea) = app.textarea {
                 let input = textarea.lines()[0].trim().to_string();
-                if !input.is_empty() {
-                    match &app.mode {
-                        AppMode::Adding => {
-                            app.add_permission(input);
-                            app.status_message = Some("Permission added".to_string());
-                        }
-                        AppMode::Editing { index } => {
-                            app.edit_permission(*index, input);
-                            app.status_message = Some("Permission updated".to_string());
-                        }
-                        _ => {}
+                if input.is_empty() {
+                    app.textarea = None;
+                    app.mode = AppMode::Normal;
+                    return;
+                }
+                if let Err(msg) = Permission::validate(&input) {
+                    app.status_message = Some(msg.to_string());
+                    return;
+                }
+                match &app.mode {
+                    AppMode::Adding => {
+                        app.add_permission(input);
+                        app.status_message = Some("Permission added".to_string());
                     }
+                    AppMode::Editing { index } => {
+                        app.edit_permission(*index, input);
+                        app.status_message = Some("Permission updated".to_string());
+                    }
+                    _ => {}
                 }
             }
             app.textarea = None;

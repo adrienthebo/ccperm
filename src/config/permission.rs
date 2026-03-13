@@ -61,7 +61,40 @@ pub struct Permission {
     pub category: PermissionCategory,
 }
 
+const KNOWN_TOOLS: &[&str] = &["Bash", "Read", "Edit", "Write", "WebFetch", "Agent"];
+
 impl Permission {
+    pub fn validate(s: &str) -> Result<(), &'static str> {
+        if s.is_empty() {
+            return Err("Permission rule cannot be empty");
+        }
+
+        if let Some(paren_start) = s.find('(') {
+            let tool = &s[..paren_start];
+            if tool.is_empty() {
+                return Err("Missing tool name before '('");
+            }
+            if !KNOWN_TOOLS.contains(&tool) && !tool.starts_with("mcp__") {
+                return Err("Unknown tool name");
+            }
+            if !s.ends_with(')') {
+                return Err("Missing closing ')'");
+            }
+            let specifier = &s[paren_start + 1..s.len() - 1];
+            if specifier.is_empty() {
+                return Err("Specifier cannot be empty");
+            }
+            Ok(())
+        } else {
+            // Bare tool name or MCP tool
+            if KNOWN_TOOLS.contains(&s) || s.starts_with("mcp__") {
+                Ok(())
+            } else {
+                Err("Unknown tool name")
+            }
+        }
+    }
+
     pub fn parse(s: &str) -> Self {
         let raw = s.to_string();
         let (tool, argument, has_wildcard) = Self::parse_permission_string(s);
@@ -200,5 +233,29 @@ mod tests {
     fn test_parse_gcloud_permission() {
         let p = Permission::parse("Bash(gcloud run deploy:*)");
         assert_eq!(p.category, PermissionCategory::GCloud);
+    }
+
+    #[test]
+    fn test_validate_valid_rules() {
+        assert!(Permission::validate("Bash").is_ok());
+        assert!(Permission::validate("Bash(npm install:*)").is_ok());
+        assert!(Permission::validate("Bash(git *)").is_ok());
+        assert!(Permission::validate("WebFetch(domain:example.com)").is_ok());
+        assert!(Permission::validate("Read(/src/**)").is_ok());
+        assert!(Permission::validate("Edit").is_ok());
+        assert!(Permission::validate("Write").is_ok());
+        assert!(Permission::validate("Agent(Explore)").is_ok());
+        assert!(Permission::validate("mcp__puppeteer").is_ok());
+        assert!(Permission::validate("mcp__puppeteer__navigate").is_ok());
+    }
+
+    #[test]
+    fn test_validate_invalid_rules() {
+        assert!(Permission::validate("").is_err());
+        assert!(Permission::validate("Foo").is_err());
+        assert!(Permission::validate("Bash(").is_err());
+        assert!(Permission::validate("Bash()").is_err());
+        assert!(Permission::validate("(npm install)").is_err());
+        assert!(Permission::validate("unknown(thing)").is_err());
     }
 }
