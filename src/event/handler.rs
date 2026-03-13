@@ -233,6 +233,23 @@ fn handle_moving_mode(app: &mut App, key: KeyEvent) {
                 *selected = selected.saturating_sub(1);
             }
         }
+        KeyCode::Char('u') | KeyCode::Char('p') | KeyCode::Char('l') => {
+            let target = match key.code {
+                KeyCode::Char('u') => SettingsSource::User,
+                KeyCode::Char('p') => SettingsSource::Project,
+                KeyCode::Char('l') => SettingsSource::Local,
+                _ => unreachable!(),
+            };
+            if let AppMode::Moving { index, destinations, .. } = &app.mode {
+                if let Some(pos) = destinations.iter().position(|s| *s == target) {
+                    let index = *index;
+                    let destination = destinations[pos];
+                    app.move_permission(index, destination);
+                    app.status_message = Some(format!("Moved to {}", destination.label()));
+                    app.mode = AppMode::Normal;
+                }
+            }
+        }
         KeyCode::Enter => {
             if let AppMode::Moving { index, destinations, selected, .. } = &app.mode {
                 let index = *index;

@@ -1,4 +1,4 @@
-use crate::app::{App, AppMode};
+use crate::app::{App, AppMode, SettingsSource};
 use crate::ui::layout::centered_rect;
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -22,7 +22,18 @@ pub fn render_picker(frame: &mut Frame, app: &App) {
 
     let items: Vec<ListItem> = destinations
         .iter()
-        .map(|s| ListItem::new(format!("  {}", s.label())))
+        .map(|s| {
+            let (key, rest) = match s {
+                SettingsSource::User => ("[u]", "ser"),
+                SettingsSource::Project => ("[p]", "roject"),
+                SettingsSource::Local => ("[l]", "ocal"),
+            };
+            ListItem::new(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(key, Style::default().fg(Color::Yellow)),
+                Span::raw(rest),
+            ]))
+        })
         .collect();
 
     let list = List::new(items)
@@ -39,7 +50,20 @@ pub fn render_picker(frame: &mut Frame, app: &App) {
                 .add_modifier(Modifier::BOLD),
         );
 
+    let shortcut_keys: Vec<&str> = destinations
+        .iter()
+        .map(|s| match s {
+            SettingsSource::User => "u",
+            SettingsSource::Project => "p",
+            SettingsSource::Local => "l",
+        })
+        .collect();
     let footer = Line::from(vec![
+        Span::styled(
+            format!("[{}]", shortcut_keys.join("/")),
+            Style::default().fg(Color::Green),
+        ),
+        Span::raw("/"),
         Span::styled("[Enter]", Style::default().fg(Color::Green)),
         Span::raw(" Move  "),
         Span::styled("[Esc]", Style::default().fg(Color::Red)),

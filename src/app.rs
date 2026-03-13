@@ -49,6 +49,9 @@ pub struct App {
     pub user_settings: Settings,
     pub project_settings: Settings,
     pub local_settings: Settings,
+    pub user_baseline: Settings,
+    pub project_baseline: Settings,
+    pub local_baseline: Settings,
     pub project_root: Option<PathBuf>,
     pub selected_tab: PermissionType,
     pub selected_source: SettingsSource,
@@ -78,7 +81,9 @@ impl Default for TreeState {
             PermissionCategory::Python,
             PermissionCategory::Cargo,
             PermissionCategory::Docker,
+            PermissionCategory::Go,
             PermissionCategory::GitHub,
+            PermissionCategory::Mcp,
             PermissionCategory::Other,
         ] {
             expanded.insert(cat.clone(), true);
@@ -109,6 +114,9 @@ impl App {
         };
 
         Ok(App {
+            user_baseline: user_settings.clone(),
+            project_baseline: project_settings.clone(),
+            local_baseline: local_settings.clone(),
             user_settings,
             project_settings,
             local_settings,
@@ -195,6 +203,25 @@ impl App {
         self.tree_state = TreeState::default();
     }
 
+    pub fn source_changes(&self, source: SettingsSource) -> (usize, usize) {
+        let (current, baseline) = match source {
+            SettingsSource::User => (&self.user_settings, &self.user_baseline),
+            SettingsSource::Project => (&self.project_settings, &self.project_baseline),
+            SettingsSource::Local => (&self.local_settings, &self.local_baseline),
+        };
+        let mut added = 0;
+        let mut removed = 0;
+        for (cur, base) in [
+            (&current.permissions.allow, &baseline.permissions.allow),
+            (&current.permissions.deny, &baseline.permissions.deny),
+            (&current.permissions.ask, &baseline.permissions.ask),
+        ] {
+            added += cur.iter().filter(|p| !base.contains(p)).count();
+            removed += base.iter().filter(|p| !cur.contains(p)).count();
+        }
+        (added, removed)
+    }
+
     pub fn toggle_category(&mut self, category: &PermissionCategory) {
         let expanded = self.tree_state.expanded.entry(category.clone()).or_insert(true);
         *expanded = !*expanded;
@@ -221,6 +248,9 @@ impl App {
                 }
             }
         }
+        self.user_baseline = self.user_settings.clone();
+        self.project_baseline = self.project_settings.clone();
+        self.local_baseline = self.local_settings.clone();
         self.dirty.clear();
         self.status_message = Some("Saved!".to_string());
         Ok(())
@@ -239,6 +269,9 @@ impl App {
             self.local_settings = Settings::default();
         }
 
+        self.user_baseline = self.user_settings.clone();
+        self.project_baseline = self.project_settings.clone();
+        self.local_baseline = self.local_settings.clone();
         self.dirty.clear();
         self.tree_state = TreeState::default();
         self.status_message = Some("Reloaded!".to_string());

@@ -48,21 +48,55 @@ pub fn render(frame: &mut Frame, app: &App) {
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App) {
-    let source_indicator = match app.selected_source {
-        SettingsSource::User => "[U]ser",
-        SettingsSource::Project => "[P]roject",
-        SettingsSource::Local => "[L]ocal",
+    let mut spans = vec![Span::styled(" ccperm", Style::default().fg(Color::Cyan))];
+
+    let sources: Vec<(SettingsSource, &str, &str)> = if app.project_root.is_some() {
+        vec![
+            (SettingsSource::User, "[U]", "ser"),
+            (SettingsSource::Project, "[P]", "roject"),
+            (SettingsSource::Local, "[L]", "ocal"),
+        ]
+    } else {
+        vec![(SettingsSource::User, "[U]", "ser")]
     };
 
-    let dirty_indicator = if !app.dirty.is_empty() { " *" } else { "" };
+    for (source, key, rest) in &sources {
+        spans.push(Span::raw("  "));
+        let is_selected = *source == app.selected_source;
+        let (added, removed) = app.source_changes(*source);
 
-    let title = format!(
-        " ccperm - Claude Code Permission Manager{}  |  {}  |  [?] Help  [q] Quit ",
-        dirty_indicator, source_indicator
-    );
+        let style = if is_selected {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        let key_style = if is_selected {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Yellow)
+        };
 
-    let header = Paragraph::new(title)
-        .style(Style::default().fg(Color::Cyan))
+        spans.push(Span::styled(*key, key_style));
+        spans.push(Span::styled(*rest, style));
+
+        if added > 0 || removed > 0 {
+            let mut parts = Vec::new();
+            if added > 0 {
+                parts.push(format!("+{}", added));
+            }
+            if removed > 0 {
+                parts.push(format!("-{}", removed));
+            }
+            spans.push(Span::styled(
+                format!(" [{}]", parts.join("/")),
+                Style::default().fg(Color::Red),
+            ));
+        }
+    }
+
+    spans.push(Span::styled("  [?] Help  [q] Quit ", Style::default().fg(Color::Cyan)));
+
+    let header = Paragraph::new(Line::from(spans))
         .block(Block::default().borders(Borders::ALL));
 
     frame.render_widget(header, area);

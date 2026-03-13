@@ -10,7 +10,9 @@ pub enum PermissionCategory {
     Python,
     Cargo,
     Docker,
+    Go,
     GitHub,
+    Mcp,
     Other,
 }
 
@@ -25,7 +27,9 @@ impl fmt::Display for PermissionCategory {
             PermissionCategory::Python => write!(f, "Python"),
             PermissionCategory::Cargo => write!(f, "Cargo"),
             PermissionCategory::Docker => write!(f, "Docker"),
+            PermissionCategory::Go => write!(f, "Go"),
             PermissionCategory::GitHub => write!(f, "GitHub"),
+            PermissionCategory::Mcp => write!(f, "MCP"),
             PermissionCategory::Other => write!(f, "Other"),
         }
     }
@@ -96,6 +100,7 @@ impl Permission {
 
         match tool {
             "WebFetch" => PermissionCategory::Web,
+            t if t.starts_with("mcp__") => PermissionCategory::Mcp,
             "Bash" | "" => {
                 if arg_lower.starts_with("git ") || arg_lower == "git" {
                     PermissionCategory::Git
@@ -127,6 +132,10 @@ impl Permission {
                     || arg_lower.starts_with("docker-compose ")
                 {
                     PermissionCategory::Docker
+                } else if arg_lower.starts_with("go ")
+                    || arg_lower.starts_with("golangci-lint ")
+                {
+                    PermissionCategory::Go
                 } else if arg_lower.starts_with("cat ")
                     || arg_lower.starts_with("ls ")
                     || arg_lower.starts_with("rm ")
