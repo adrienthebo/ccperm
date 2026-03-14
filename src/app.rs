@@ -72,8 +72,6 @@ pub struct App {
 
 pub struct TreeState {
     pub expanded: HashMap<PermissionCategory, bool>,
-    pub selected_category: Option<PermissionCategory>,
-    pub selected_index: Option<usize>,
     pub flat_index: usize,
 }
 
@@ -98,8 +96,6 @@ impl Default for TreeState {
         }
         TreeState {
             expanded,
-            selected_category: None,
-            selected_index: None,
             flat_index: 0,
         }
     }

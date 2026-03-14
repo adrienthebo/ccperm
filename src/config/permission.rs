@@ -54,9 +54,6 @@ impl fmt::Display for PermissionType {
 
 #[derive(Debug, Clone)]
 pub struct Permission {
-    pub tool: String,
-    pub argument: String,
-    pub has_wildcard: bool,
     pub raw: String,
     pub category: PermissionCategory,
 }
@@ -97,35 +94,18 @@ impl Permission {
 
     pub fn parse(s: &str) -> Self {
         let raw = s.to_string();
-        let (tool, argument, has_wildcard) = Self::parse_permission_string(s);
-        let category = Self::categorize(&tool, &argument);
+        let (tool, argument) = if let Some(paren_start) = s.find('(') {
+            let tool = &s[..paren_start];
+            let paren_end = s.rfind(')').unwrap_or(s.len());
+            let inner = &s[paren_start + 1..paren_end];
+            let argument = inner.strip_suffix(":*").unwrap_or(inner);
+            (tool, argument)
+        } else {
+            ("", s)
+        };
+        let category = Self::categorize(tool, argument);
 
-        Permission {
-            tool,
-            argument,
-            has_wildcard,
-            raw,
-            category,
-        }
-    }
-
-    fn parse_permission_string(s: &str) -> (String, String, bool) {
-        // Format: "Tool(argument)" or "Tool(argument:*)"
-        if let Some(paren_start) = s.find('(') {
-            if let Some(paren_end) = s.rfind(')') {
-                let tool = s[..paren_start].to_string();
-                let inner = &s[paren_start + 1..paren_end];
-                let has_wildcard = inner.ends_with(":*");
-                let argument = if has_wildcard {
-                    inner[..inner.len() - 2].to_string()
-                } else {
-                    inner.to_string()
-                };
-                return (tool, argument, has_wildcard);
-            }
-        }
-        // Fallback: treat the whole string as a simple permission
-        (String::new(), s.to_string(), false)
+        Permission { raw, category }
     }
 
     fn categorize(tool: &str, argument: &str) -> PermissionCategory {
@@ -190,15 +170,6 @@ impl Permission {
         }
     }
 
-    pub fn display_short(&self) -> String {
-        let chars: Vec<char> = self.raw.chars().collect();
-        if chars.len() > 50 {
-            let truncated: String = chars[..47].iter().collect();
-            format!("{}...", truncated)
-        } else {
-            self.raw.clone()
-        }
-    }
 }
 
 #[cfg(test)]
@@ -208,18 +179,12 @@ mod tests {
     #[test]
     fn test_parse_bash_permission() {
         let p = Permission::parse("Bash(npm install:*)");
-        assert_eq!(p.tool, "Bash");
-        assert_eq!(p.argument, "npm install");
-        assert!(p.has_wildcard);
         assert_eq!(p.category, PermissionCategory::Npm);
     }
 
     #[test]
     fn test_parse_webfetch_permission() {
         let p = Permission::parse("WebFetch(domain:github.com)");
-        assert_eq!(p.tool, "WebFetch");
-        assert_eq!(p.argument, "domain:github.com");
-        assert!(!p.has_wildcard);
         assert_eq!(p.category, PermissionCategory::Web);
     }
 
