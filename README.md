@@ -13,7 +13,7 @@ A TUI (Terminal User Interface) viewer and editor for [Claude Code](https://clau
 ## Features
 
 - **Tree View**: Permissions are automatically categorized and displayed in a collapsible tree structure
-- **Categories**: Git, NPM, GCloud, GitHub, FileSystem, Web, Python, Cargo, Docker, Go, MCP, and Other
+- **Categories**: Git, NPM, GCloud, GitHub, FileSystem, Web, Python, Cargo, Docker, Go, MCP, Skill, SlashCommand, and Other
 - **Edit Support**: Add, edit, delete, move, and sort permission rules
 - **Three Settings Sources**: User (`~/.claude/settings.json`), Project (`<git-root>/.claude/settings.json`), and Local (`<git-root>/.claude/settings.local.json`)
 - **Tab Navigation**: Switch between Allow, Deny, and Ask permission types
@@ -61,6 +61,7 @@ ccperm
 |-----|--------|
 | `a` | Add new permission |
 | `e` | Edit selected permission |
+| `c` | Change permission type (allow/deny/ask) |
 | `d` | Delete selected permission |
 | `m` | Move permission to another source |
 | `o` | Sort permissions |
@@ -86,9 +87,9 @@ ccperm
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ ccperm - Claude Code Permission Manager           [?] Help [q] │
+│ ccperm  [U]ser  [P]roject  [L]ocal  [?] Help  [q] Quit         │
 ├─────────────────────────────────────────────────────────────────┤
-│ [Allow] [Deny] [Ask]                     [U]ser [P]roj [L]ocal │
+│ Allow (36) │ Deny (0) │ Ask (0)                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ ▼ Git (5)                                                       │
 │   ├─ Bash(git commit:*)                                         │
@@ -98,9 +99,11 @@ ccperm
 │   ├─ Bash(npm install:*)                                        │
 │   └─ Bash(npm run build:*)                                      │
 │ ▶ GCloud (12)                                                   │
-│ ▶ Web (2)                                                       │
+│ ▶ Skill (3)                                                     │
+│ ▶ SlashCommand (2)                                              │
+│ ▶ Other (8)                                                     │
 ├─────────────────────────────────────────────────────────────────┤
-│ [a]dd [e]dit [d]elete [m]ove [s]ave [r]eload        Total: 36  │
+│ [a]dd [e]dit [d]elete [c]hange [m]ove s[o]rt [s]ave [r]eload   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
