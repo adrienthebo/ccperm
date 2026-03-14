@@ -13,6 +13,8 @@ pub enum PermissionCategory {
     Go,
     GitHub,
     Mcp,
+    Skill,
+    SlashCommand,
     Other,
 }
 
@@ -30,6 +32,8 @@ impl fmt::Display for PermissionCategory {
             PermissionCategory::Go => write!(f, "Go"),
             PermissionCategory::GitHub => write!(f, "GitHub"),
             PermissionCategory::Mcp => write!(f, "MCP"),
+            PermissionCategory::Skill => write!(f, "Skill"),
+            PermissionCategory::SlashCommand => write!(f, "SlashCommand"),
             PermissionCategory::Other => write!(f, "Other"),
         }
     }
@@ -58,7 +62,7 @@ pub struct Permission {
     pub category: PermissionCategory,
 }
 
-const KNOWN_TOOLS: &[&str] = &["Bash", "Read", "Edit", "Write", "WebFetch", "Agent"];
+const KNOWN_TOOLS: &[&str] = &["Bash", "Read", "Edit", "Write", "WebFetch", "Agent", "Skill", "SlashCommand"];
 
 impl Permission {
     pub fn validate(s: &str) -> Result<(), &'static str> {
@@ -113,6 +117,8 @@ impl Permission {
 
         match tool {
             "WebFetch" => PermissionCategory::Web,
+            "Skill" => PermissionCategory::Skill,
+            "SlashCommand" => PermissionCategory::SlashCommand,
             t if t.starts_with("mcp__") => PermissionCategory::Mcp,
             "Bash" | "" => {
                 if arg_lower.starts_with("mcp__") {
@@ -201,6 +207,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_skill_permission() {
+        let p = Permission::parse("Skill(add-admin-page)");
+        assert_eq!(p.category, PermissionCategory::Skill);
+    }
+
+    #[test]
+    fn test_parse_slash_command_permission() {
+        let p = Permission::parse("SlashCommand(/ci-failures)");
+        assert_eq!(p.category, PermissionCategory::SlashCommand);
+    }
+
+    #[test]
     fn test_validate_valid_rules() {
         assert!(Permission::validate("Bash").is_ok());
         assert!(Permission::validate("Bash(npm install:*)").is_ok());
@@ -212,6 +230,8 @@ mod tests {
         assert!(Permission::validate("Agent(Explore)").is_ok());
         assert!(Permission::validate("mcp__puppeteer").is_ok());
         assert!(Permission::validate("mcp__puppeteer__navigate").is_ok());
+        assert!(Permission::validate("Skill(add-admin-page)").is_ok());
+        assert!(Permission::validate("SlashCommand(/ci-failures)").is_ok());
     }
 
     #[test]

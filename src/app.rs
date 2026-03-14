@@ -90,6 +90,8 @@ impl Default for TreeState {
             PermissionCategory::Go,
             PermissionCategory::GitHub,
             PermissionCategory::Mcp,
+            PermissionCategory::Skill,
+            PermissionCategory::SlashCommand,
             PermissionCategory::Other,
         ] {
             expanded.insert(cat.clone(), true);
@@ -366,6 +368,8 @@ impl App {
             PermissionCategory::Docker,
             PermissionCategory::Go,
             PermissionCategory::Mcp,
+            PermissionCategory::Skill,
+            PermissionCategory::SlashCommand,
             PermissionCategory::Other,
         ];
 
