@@ -410,3 +410,459 @@ pub enum FlatItem {
         permission: Permission,
     },
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DuplicateKind {
+    Duplicate {
+        source: SettingsSource,
+    },
+    Overrides {
+        source: SettingsSource,
+        permission_type: PermissionType,
+    },
+    OverriddenBy {
+        source: SettingsSource,
+        permission_type: PermissionType,
+    },
+}
+
+fn type_restrictiveness(t: &PermissionType) -> u8 {
+    match t {
+        PermissionType::Allow => 0,
+        PermissionType::Ask => 1,
+        PermissionType::Deny => 2,
+    }
+}
+
+fn source_precedence(s: &SettingsSource) -> u8 {
+    match s {
+        SettingsSource::User => 0,
+        SettingsSource::Project => 1,
+        SettingsSource::Local => 2,
+    }
+}
+
+impl App {
+    pub fn detect_duplicates(&self) -> HashMap<String, Vec<DuplicateKind>> {
+        let current = self.current_permissions();
+        let mut result: HashMap<String, Vec<DuplicateKind>> = HashMap::new();
+
+        // Intra-array: same string appears more than once in this array
+        let mut counts: HashMap<&str, usize> = HashMap::new();
+        for perm in current {
+            *counts.entry(perm.as_str()).or_default() += 1;
+        }
+        for (perm, count) in &counts {
+            if *count > 1 {
+                result
+                    .entry(perm.to_string())
+                    .or_default()
+                    .push(DuplicateKind::Duplicate {
+                        source: self.selected_source,
+                    });
+            }
+        }
+
+        // Cross-source
+        let other_sources: Vec<(SettingsSource, &Settings)> = [
+            (SettingsSource::User, &self.user_settings),
+            (SettingsSource::Project, &self.project_settings),
+            (SettingsSource::Local, &self.local_settings),
+        ]
+        .into_iter()
+        .filter(|(s, _)| *s != self.selected_source)
+        .collect();
+
+        let current_type = &self.selected_tab;
+        let unique_perms: HashSet<&String> = current.iter().collect();
+
+        for perm in &unique_perms {
+            for (source, settings) in &other_sources {
+                for (ptype, arr) in [
+                    (PermissionType::Allow, &settings.permissions.allow),
+                    (PermissionType::Deny, &settings.permissions.deny),
+                    (PermissionType::Ask, &settings.permissions.ask),
+                ] {
+                    if !arr.contains(perm) {
+                        continue;
+                    }
+
+                    let kind = if ptype == *current_type {
+                        DuplicateKind::Duplicate { source: *source }
+                    } else {
+                        let current_wins =
+                            type_restrictiveness(current_type) > type_restrictiveness(&ptype)
+                            || (type_restrictiveness(current_type) == type_restrictiveness(&ptype)
+                                && source_precedence(&self.selected_source) > source_precedence(source));
+
+                        if current_wins {
+                            DuplicateKind::Overrides {
+                                source: *source,
+                                permission_type: ptype,
+                            }
+                        } else {
+                            DuplicateKind::OverriddenBy {
+                                source: *source,
+                                permission_type: ptype,
+                            }
+                        }
+                    };
+
+                    result.entry(perm.to_string()).or_default().push(kind);
+                }
+            }
+        }
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Settings;
+
+    struct TestApp {
+        app: App,
+    }
+
+    impl TestApp {
+        fn new() -> Self {
+            Self {
+                app: App {
+                    user_settings: Settings::default(),
+                    project_settings: Settings::default(),
+                    local_settings: Settings::default(),
+                    user_baseline: Settings::default(),
+                    project_baseline: Settings::default(),
+                    local_baseline: Settings::default(),
+                    project_root: None,
+                    selected_tab: PermissionType::Allow,
+                    selected_source: SettingsSource::User,
+                    mode: AppMode::Normal,
+                    dirty: HashSet::new(),
+                    should_quit: false,
+                    tree_state: TreeState::default(),
+                    status_message: None,
+                    textarea: None,
+                },
+            }
+        }
+
+        fn perms(mut self, source: SettingsSource, ptype: PermissionType, perms: Vec<&str>) -> Self {
+            let vec: Vec<String> = perms.into_iter().map(String::from).collect();
+            let settings = match source {
+                SettingsSource::User => &mut self.app.user_settings,
+                SettingsSource::Project => &mut self.app.project_settings,
+                SettingsSource::Local => &mut self.app.local_settings,
+            };
+            match ptype {
+                PermissionType::Allow => settings.permissions.allow = vec,
+                PermissionType::Deny => settings.permissions.deny = vec,
+                PermissionType::Ask => settings.permissions.ask = vec,
+            };
+            self
+        }
+
+        fn viewing(mut self, source: SettingsSource, ptype: PermissionType) -> Self {
+            self.app.selected_source = source;
+            self.app.selected_tab = ptype;
+            self
+        }
+
+        fn build(self) -> App {
+            self.app
+        }
+    }
+
+    // --- Duplicate detection ---
+
+    #[test]
+    fn no_duplicates() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(npm install)"])
+            .build();
+        assert!(app.detect_duplicates().is_empty());
+    }
+
+    #[test]
+    fn intra_array_duplicate() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)", "Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::User,
+        }));
+    }
+
+    #[test]
+    fn cross_source_same_type_is_duplicate() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::Project,
+        }));
+    }
+
+    #[test]
+    fn cross_source_same_type_deny_is_duplicate() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Deny, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Deny, vec!["Bash(git push)"])
+            .viewing(SettingsSource::User, PermissionType::Deny)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::Local,
+        }));
+    }
+
+    #[test]
+    fn cross_source_same_type_ask_is_duplicate() {
+        let app = TestApp::new()
+            .perms(SettingsSource::Project, PermissionType::Ask, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Ask, vec!["Bash(git push)"])
+            .viewing(SettingsSource::Project, PermissionType::Ask)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::Local,
+        }));
+    }
+
+    // --- Type restrictiveness: Deny > Ask > Allow ---
+
+    #[test]
+    fn allow_overridden_by_deny() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Deny, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+
+    #[test]
+    fn allow_overridden_by_ask() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Ask, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Ask,
+        }));
+    }
+
+    #[test]
+    fn ask_overridden_by_deny() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Ask, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Deny, vec!["Bash(git push)"])
+            .viewing(SettingsSource::User, PermissionType::Ask)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+
+    #[test]
+    fn deny_overrides_allow() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Deny, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(git push)"])
+            .viewing(SettingsSource::User, PermissionType::Deny)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Overrides {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Allow,
+        }));
+    }
+
+    #[test]
+    fn deny_overrides_ask() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Deny, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Ask, vec!["Bash(git push)"])
+            .viewing(SettingsSource::User, PermissionType::Deny)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Overrides {
+            source: SettingsSource::Local,
+            permission_type: PermissionType::Ask,
+        }));
+    }
+
+    #[test]
+    fn ask_overrides_allow() {
+        let app = TestApp::new()
+            .perms(SettingsSource::Project, PermissionType::Ask, vec!["Bash(git push)"])
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .viewing(SettingsSource::Project, PermissionType::Ask)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Overrides {
+            source: SettingsSource::User,
+            permission_type: PermissionType::Allow,
+        }));
+    }
+
+    // --- Source precedence (tiebreaker when same restrictiveness) ---
+    // This shouldn't happen in practice (same type = Duplicate), but
+    // if types had equal restrictiveness from different categories it would matter.
+    // We don't have that case, so source precedence only applies as a theoretical tiebreaker.
+
+    // --- Viewing from different sources ---
+
+    #[test]
+    fn viewing_project_allow_overridden_by_local_deny() {
+        let app = TestApp::new()
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Deny, vec!["Bash(git push)"])
+            .viewing(SettingsSource::Project, PermissionType::Allow)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Local,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+
+    #[test]
+    fn viewing_local_deny_overrides_user_allow() {
+        let app = TestApp::new()
+            .perms(SettingsSource::Local, PermissionType::Deny, vec!["Bash(git push)"])
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .viewing(SettingsSource::Local, PermissionType::Deny)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Overrides {
+            source: SettingsSource::User,
+            permission_type: PermissionType::Allow,
+        }));
+    }
+
+    #[test]
+    fn viewing_local_ask_overrides_project_allow() {
+        let app = TestApp::new()
+            .perms(SettingsSource::Local, PermissionType::Ask, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(git push)"])
+            .viewing(SettingsSource::Local, PermissionType::Ask)
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Overrides {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Allow,
+        }));
+    }
+
+    // --- Compound cases ---
+
+    #[test]
+    fn intra_dup_and_cross_source_override() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)", "Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Deny, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Allow, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::User,
+        }));
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Deny,
+        }));
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::Local,
+        }));
+    }
+
+    #[test]
+    fn same_source_has_dup_and_override() {
+        // Project has permission in both Allow and Deny; viewing User/Allow
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Deny, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert_eq!(kinds.len(), 2);
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::Project,
+        }));
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+
+    #[test]
+    fn intra_duplicates_dont_multiply_cross_source() {
+        // 3 copies in User/Allow + conflict in Project/Deny
+        // should produce 1 Duplicate + 1 OverriddenBy, not 3 OverriddenBy
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec![
+                "Bash(git push)", "Bash(git push)", "Bash(git push)",
+            ])
+            .perms(SettingsSource::Project, PermissionType::Deny, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert_eq!(kinds.len(), 2);
+        assert!(kinds.contains(&DuplicateKind::Duplicate {
+            source: SettingsSource::User,
+        }));
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+
+    #[test]
+    fn multiple_conflicts_across_all_sources() {
+        let app = TestApp::new()
+            .perms(SettingsSource::User, PermissionType::Allow, vec!["Bash(git push)"])
+            .perms(SettingsSource::Project, PermissionType::Ask, vec!["Bash(git push)"])
+            .perms(SettingsSource::Local, PermissionType::Deny, vec!["Bash(git push)"])
+            .build();
+        let dups = app.detect_duplicates();
+        let kinds = &dups["Bash(git push)"];
+        assert_eq!(kinds.len(), 2);
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Project,
+            permission_type: PermissionType::Ask,
+        }));
+        assert!(kinds.contains(&DuplicateKind::OverriddenBy {
+            source: SettingsSource::Local,
+            permission_type: PermissionType::Deny,
+        }));
+    }
+}
